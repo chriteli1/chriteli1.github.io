@@ -1,0 +1,65 @@
+name: Update submodule and deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Allow fetching the SSH-configured public submodule over HTTPS
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Update submodule to the latest main commit
+        run: |
+          git submodule update --init --recursive
+          git -C the_cursed_castle fetch origin main
+          git -C the_cursed_castle checkout --detach FETCH_HEAD
+
+      - name: Commit and push the updated submodule pointer
+        run: |
+          git add the_cursed_castle
+          if git diff --cached --quiet -- the_cursed_castle; then
+            echo "The parent already points to the latest submodule commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Update the_cursed_castle submodule"
+            git push origin "HEAD:refs/heads/$DEFAULT_BRANCH"
+          fi
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare site files
+        run: |
+          mkdir -p "$RUNNER_TEMP/site"
+          rsync -a --exclude='.git' --exclude='.github' ./ "$RUNNER_TEMP/site/"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
