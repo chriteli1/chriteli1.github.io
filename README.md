@@ -1,5 +1,5 @@
 # chriteli1.github.io
-Repo to host projects on GitHub Pages
+Repo to host projects on GitHub Pages (https://chriteli1.github.io/)
 
 ## Update and deploy the latest game
 
